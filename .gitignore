@@ -1,0 +1,7 @@
+node_modules/
+.env
+.DS_Store
+projects/**/exports/*.rbxmx
+projects/**/generated/
+*.log
+

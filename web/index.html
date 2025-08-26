@@ -17,20 +17,44 @@
     </div>
   </nav>
 
-  <div class="max-w-4xl mx-auto p-6">
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-      <div class="p-4 border-b bg-indigo-600 text-white">
-        <h3 class="text-lg font-medium">RO‑AI Assistant</h3>
-        <p class="text-sm text-indigo-100">Live coding assistant</p>
+  <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="bg-white rounded-xl shadow overflow-hidden lg:col-span-2 flex flex-col">
+      <div class="p-4 border-b bg-indigo-600 text-white flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-medium">RO‑AI Assistant</h3>
+          <p class="text-sm text-indigo-100">Live coding assistant</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <select id="project-select" class="px-2 py-1 rounded text-gray-900">
+            <option value="">Select project…</option>
+          </select>
+          <button id="new-project" class="px-2 py-1 bg-white/10 border border-white/30 rounded text-white">New</button>
+        </div>
       </div>
 
-      <div id="chat" class="p-4 space-y-4 h-[60vh] overflow-auto bg-gray-50"></div>
+      <div id="chat" class="p-4 space-y-4 grow overflow-auto bg-gray-50"></div>
 
       <div class="p-4 border-t flex items-center space-x-2 bg-white">
         <input id="msg" class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500" placeholder="Ask RO‑AI…"/>
         <button id="send" class="px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
           <i class="fas fa-paper-plane"></i>
         </button>
+        <button id="export-chat" class="px-3 py-2 border rounded">Export Chat → Lua</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow overflow-hidden flex flex-col">
+      <div class="p-4 border-b flex items-center justify-between">
+        <div class="font-medium">Live Code</div>
+        <div class="space-x-2">
+          <button id="save-files" class="text-sm px-2 py-1 border rounded">Save</button>
+          <button id="sync-rojo" class="text-sm px-2 py-1 border rounded">Sync to Studio</button>
+          <button id="export-rbxmx" class="text-sm px-2 py-1 border rounded">Export .rbxmx</button>
+        </div>
+      </div>
+      <div id="code-tabs" class="flex border-b overflow-auto"></div>
+      <div id="code-panel" class="p-0 grow overflow-auto">
+        <pre id="code-pre" class="p-4 text-sm"></pre>
       </div>
     </div>
   </div>
@@ -41,6 +65,13 @@
     const chat = document.getElementById('chat');
     const msg  = document.getElementById('msg');
     const send = document.getElementById('send');
+    const projectSelect = document.getElementById('project-select');
+    const newProjectBtn = document.getElementById('new-project');
+    const saveBtn = document.getElementById('save-files');
+    const syncBtn = document.getElementById('sync-rojo');
+    const exportBtn = document.getElementById('export-rbxmx');
+    const codeTabs = document.getElementById('code-tabs');
+    const codePre = document.getElementById('code-pre');
 
     function add(html, me=false){
       const wrap = document.createElement('div');
@@ -50,6 +81,19 @@
         : `<div class="bg-white px-4 py-2 rounded-lg shadow max-w-[80%]">${html}</div>`;
       chat.appendChild(wrap); chat.scrollTop = chat.scrollHeight;
     }
+    // Chat history persistence
+    let history = JSON.parse(localStorage.getItem('rocode-history')||'[]').slice(-10);
+    if (history.length === 0){
+      history.push({ role: 'assistant', content: 'Hello! What would you like to build today?' });
+    }
+    history.forEach(m => add(m.content.replace(/\n/g,'<br/>'), m.role==='user'));
+
+    function pushHistory(role, content){
+      history.push({ role, content });
+      history = history.slice(-10);
+      localStorage.setItem('rocode-history', JSON.stringify(history));
+    }
+
 
     async function chatWithAI(messages, model='gpt-4o-mini', temperature=0.35){
       const r = await fetch('/api/openai/chat', {
@@ -61,20 +105,151 @@
       return r.json();
     }
 
+    async function api(path, options){
+      const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+      return r.json();
+    }
+
+    // Project management
+    async function refreshProjects(){
+      const data = await api('/api/projects');
+      projectSelect.innerHTML = '<option value="">Select project…</option>' +
+        data.projects.map(p => `<option>${p}</option>`).join('');
+      const last = localStorage.getItem('rocode-project');
+      if (last && data.projects.includes(last)) projectSelect.value = last;
+    }
+
+    newProjectBtn.addEventListener('click', async ()=>{
+      const name = prompt('New project name');
+      if (!name) return;
+      const template = prompt('Template? (horror/simulator/tycoon or blank)') || '';
+      await api('/api/projects', { method: 'POST', body: JSON.stringify({ name, template }) });
+      await refreshProjects();
+      projectSelect.value = name;
+      localStorage.setItem('rocode-project', name);
+    });
+
+    projectSelect.addEventListener('change', ()=>{
+      localStorage.setItem('rocode-project', projectSelect.value || '');
+    });
+
+    // Code collection from last AI message
+    let lastFiles = [];
+    function parseCodeBlocks(markdown){
+      const regex = /```(\w+)?\n([\s\S]*?)```/g;
+      const files = [];
+      let m;
+      while ((m = regex.exec(markdown))){
+        const lang = (m[1]||'text').toLowerCase();
+        const content = m[2];
+        let filename = undefined;
+        if (lang === 'lua') filename = `Script_${Date.now()}.server.lua`;
+        else if (lang === 'javascript' || lang === 'js') filename = `web_${Date.now()}.js`;
+        else filename = `file_${Date.now()}.txt`;
+        files.push({ filename, content });
+      }
+      return files;
+    }
+
+    async function saveCurrentFiles(){
+      const proj = projectSelect.value;
+      if (!proj) { alert('Select a project first'); return; }
+      if (!lastFiles.length) { alert('No code to save yet'); return; }
+      const res = await api(`/api/projects/${encodeURIComponent(proj)}/files`, {
+        method: 'POST', body: JSON.stringify({ files: lastFiles })
+      });
+      alert('Saved files: ' + res.saved.map(s=>s.relPath).join('\n'));
+    }
+    saveBtn.addEventListener('click', saveCurrentFiles);
+
+    syncBtn.addEventListener('click', async ()=>{
+      const proj = projectSelect.value; if (!proj) return alert('Select a project');
+      await api(`/api/projects/${encodeURIComponent(proj)}/rojo/start`, { method: 'POST' });
+      alert('Rojo started (port 34872). Open Roblox Studio Rojo plugin and connect.');
+    });
+
+    exportBtn.addEventListener('click', async ()=>{
+      const proj = projectSelect.value; if (!proj) return alert('Select a project');
+      const res = await api(`/api/projects/${encodeURIComponent(proj)}/export`, { method: 'POST' });
+      alert(`Exported ${res.count} scripts to ${res.out}`);
+    });
+
     send.addEventListener('click', async ()=>{
       const text = msg.value.trim(); if(!text) return;
-      add(text, true); msg.value = '';
+      add(text, true); pushHistory('user', text); msg.value = '';
+      const typing = document.createElement('div');
+      typing.innerHTML = `<div class='text-gray-500 text-sm'><i class="fas fa-circle-notch fa-spin"></i> RO‑AI is typing…</div>`;
+      chat.appendChild(typing);
       try{
         const resp = await chatWithAI([
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: text }
         ]);
         const content = resp?.choices?.[0]?.message?.content || 'No response';
-        add(content);
+        typing.remove();
+        // render markdown minimally
+        add(content.replace(/\n/g,'<br/>')); pushHistory('assistant', content);
+        // parse code blocks to tabs and files
+        lastFiles = parseCodeBlocks(content);
+        renderCodeTabs(lastFiles);
+        // auto-save to project if selected
+        const proj = projectSelect.value;
+        if (proj && lastFiles.length){
+          try{ await api(`/api/projects/${encodeURIComponent(proj)}/files`, { method: 'POST', body: JSON.stringify({ files: lastFiles }) }); }catch(e){}
+        }
       }catch(e){ add(`<div class='text-red-700 text-sm'>${e.message}</div>`); }
     });
 
     msg.addEventListener('keypress', (e)=>{ if(e.key==='Enter') send.click(); });
+
+    function renderCodeTabs(files){
+      codeTabs.innerHTML = '';
+      if (!files.length) { codePre.textContent = ''; return; }
+      files.forEach((f, idx)=>{
+        const btn = document.createElement('button');
+        btn.className = 'px-3 py-2 text-sm border-r';
+        btn.textContent = f.filename;
+        btn.addEventListener('click', ()=>{
+          document.querySelectorAll('#code-tabs button').forEach(b=>b.classList.remove('bg-gray-100'));
+          btn.classList.add('bg-gray-100');
+          codePre.textContent = f.content;
+          Prism.highlightElement(codePre);
+        });
+        codeTabs.appendChild(btn);
+        if (idx===0) btn.click();
+      });
+    }
+
+    // init
+    refreshProjects().catch(()=>{});
+    
+    // Export chat → Lua ModuleScript
+    document.getElementById('export-chat').addEventListener('click', async ()=>{
+      const proj = projectSelect.value; if (!proj) return alert('Select a project');
+      const luaTable = toLuaTable(history);
+      const lua = `-- Auto-exported chat history\nreturn ${luaTable}`;
+      lastFiles = [{ filename: `ChatHistory_${Date.now()}.ModuleScript.lua`, path: 'ReplicatedStorage/Fractured/ChatHistory.ModuleScript.lua', content: lua }];
+      try{
+        await api(`/api/projects/${encodeURIComponent(proj)}/files`, { method: 'POST', body: JSON.stringify({ files: lastFiles }) });
+        alert('Chat exported to ReplicatedStorage/Fractured/ChatHistory.ModuleScript.lua');
+      }catch(e){ alert(e.message); }
+    });
+
+    function toLuaValue(v){
+      if (typeof v === 'string') return JSON.stringify(v).replace(/\\u2028|\\u2029/g, ' ');
+      if (typeof v === 'number') return String(v);
+      if (typeof v === 'boolean') return v ? 'true' : 'false';
+      if (Array.isArray(v)) return toLuaTable(v);
+      if (v && typeof v === 'object'){
+        const parts = Object.keys(v).map(k=>`[${toLuaValue(k)}] = ${toLuaValue(v[k])}`);
+        return `{ ${parts.join(', ')} }`;
+      }
+      return 'nil';
+    }
+    function toLuaTable(arr){
+      return `{ ${arr.map(it=>toLuaValue(it)).join(', ')} }`;
+    }
   </script>
 </body>
 </html>
