@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- build-version: v3-commit-ui-monochrome -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,56 +7,73 @@
   <title>RO‑AI | AI Coding Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <style>
+    .typing-demo{width:22ch;animation:typing 2s steps(22),blink .5s step-end infinite alternate;white-space:nowrap;overflow:hidden;border-right:3px solid}
+    @keyframes typing{from{width:0}}
+    @keyframes blink{50%{border-color:transparent}}
+  </style>
   <script>
-    // Apply saved theme ASAP to avoid flash
-    (function(){
-      const saved = localStorage.getItem('rocode-theme') || 'light';
-      if (saved === 'dark') document.documentElement.classList.add('dark');
-    })();
+    (function(){})();
   </script>
 </head>
-<body class="bg-gray-50 dark:bg-[#0f0b1a]">
+<body class="bg-black text-white">
   <nav class="bg-white dark:bg-[#1a1130] shadow-sm">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-2">
         <i class="fas fa-robot text-indigo-600 dark:text-purple-400 text-2xl"></i>
         <span class="text-xl font-bold text-gray-900 dark:text-gray-100">RO‑AI</span>
       </div>
+      <div class="space-x-2">
       <button id="theme-toggle" class="px-2 py-1 text-sm border rounded dark:border-purple-500 dark:text-purple-300">
         <i class="fas fa-moon"></i> Theme
       </button>
+      <button id="settings-btn" class="px-2 py-1 text-sm border rounded dark:border-purple-500 dark:text-purple-300">
+        <i class="fas fa-gear"></i> Settings
+      </button>
+      </div>
     </div>
   </nav>
 
-  <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="bg-white dark:bg-[#160e27] rounded-xl shadow overflow-hidden lg:col-span-2 flex flex-col">
-      <div class="p-4 border-b bg-indigo-600 dark:bg-purple-700 text-white flex items-center justify-between">
-        <div>
-          <h3 class="text-lg font-medium">RO‑AI Assistant</h3>
-          <p class="text-sm text-indigo-100">Live coding assistant</p>
+  <div class="max-w-6xl mx-auto p-6">
+    <!-- Monochrome landing with real chat -->
+    <section class="bg-black text-white rounded-2xl border border-white/10 overflow-hidden">
+      <div class="p-6 flex items-center justify-between border-b border-white/10">
+        <div class="flex items-center space-x-2">
+          <div class="h-8 w-8 rounded-full border border-white/30 flex items-center justify-center"><i class="fas fa-comment-dots"></i></div>
+          <div>
+            <h3 class="text-lg font-medium">RO‑AI Assistant</h3>
+            <p class="text-sm text-white/60">Live coding assistant</p>
+          </div>
         </div>
         <div class="flex items-center space-x-2">
-          <select id="project-select" class="px-2 py-1 rounded text-gray-900">
+          <select id="project-select" class="px-2 py-1 rounded text-black">
             <option value="">Select project…</option>
           </select>
-          <button id="new-project" class="px-2 py-1 bg-white/10 border border-white/30 rounded text-white">New</button>
+          <button id="new-project" class="px-2 py-1 border border-white/40 rounded">New</button>
         </div>
       </div>
-
-      <div id="chat" class="p-4 space-y-4 grow overflow-auto bg-gray-50 dark:bg-[#0f0b1a]"></div>
-
-      <div class="p-4 border-t flex items-center space-x-2 bg-white dark:bg-[#160e27]">
-        <input id="msg" class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 dark:bg-[#0f0b1a] dark:text-gray-100" placeholder="Ask RO‑AI…"/>
-        <button id="send" class="px-3 py-2 bg-indigo-600 dark:bg-purple-700 text-white rounded hover:bg-indigo-700">
-          <i class="fas fa-paper-plane"></i>
-        </button>
-        <button id="export-chat" class="px-3 py-2 border rounded">Export Chat → Lua</button>
+      <div class="p-6 grid grid-cols-1 gap-6">
+        <div id="chat" class="min-h-[420px] max-h-[520px] overflow-auto space-y-4 bg-black/40 border border-white/10 rounded-lg p-4"></div>
+        <div class="flex items-center gap-2">
+          <input id="msg" class="flex-1 px-3 py-2 rounded bg-black border border-white/20 text-white placeholder-white/40" placeholder="Type a prompt…"/>
+          <button id="send" class="px-3 py-2 border border-white/40 rounded"><i class="fas fa-paper-plane"></i></button>
+        </div>
+        <div class="flex gap-3">
+          <button id="act-chapter" class="px-4 py-2 border border-white/40 rounded">Generate Full Chapter</button>
+          <button id="suggest-btn" class="px-4 py-2 border border-white/40 rounded">Get Suggestions</button>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="bg-white dark:bg-[#160e27] rounded-xl shadow overflow-hidden flex flex-col">
+    <!-- Quick actions sidebar -->
+    <aside class="mt-6 text-white/70 text-sm">
+      <div id="local-banner" class="hidden">Project features are available in local mode (netlify dev + backend).</div>
+    </aside>
+
+    <!-- Live code -->
+    <div class="mt-8 bg-black text-white rounded-2xl border border-white/10 overflow-hidden flex flex-col">
       <div class="p-4 border-b flex items-center justify-between">
-        <div class="font-medium dark:text-gray-100">Live Code</div>
+        <div class="font-medium">Live Code</div>
         <div class="space-x-2">
           <button id="save-files" class="text-sm px-2 py-1 border rounded">Save</button>
           <button id="sync-rojo" class="text-sm px-2 py-1 border rounded">Sync to Studio</button>
@@ -64,7 +82,7 @@
       </div>
       <div id="code-tabs" class="flex border-b overflow-auto"></div>
       <div id="code-panel" class="p-0 grow overflow-auto">
-        <pre id="code-pre" class="p-4 text-sm dark:text-gray-100"></pre>
+        <pre id="code-pre" class="p-4 text-sm"></pre>
       </div>
     </div>
   </div>
@@ -105,7 +123,10 @@
     }
 
 
-    async function chatWithAI(messages, model='gpt-4o-mini', temperature=0.5){
+    function getModel(){ return localStorage.getItem('rocode-model') || 'gpt-4o-mini'; }
+    function getTemp(){ return Number(localStorage.getItem('rocode-temp') || '0.5'); }
+
+    async function chatWithAI(messages, model=getModel(), temperature=getTemp()){
       const r = await fetch('/api/openai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,6 +260,18 @@
       localStorage.setItem('rocode-theme', dark ? 'dark' : 'light');
     });
 
+    // Settings (model & temperature) without redeploy
+    const settingsBtn = document.getElementById('settings-btn');
+    settingsBtn.addEventListener('click', ()=>{
+      const currModel = getModel();
+      const m = prompt('Model ID (leave to keep):', currModel);
+      if (m) localStorage.setItem('rocode-model', m.trim());
+      const currT = getTemp();
+      const t = prompt('Temperature 0.1–1.0:', String(currT));
+      if (t) localStorage.setItem('rocode-temp', String(Math.max(0.1, Math.min(1.0, Number(t)))));
+      alert('Settings saved. New chats will use the updated model/temperature.');
+    });
+
     // init
     refreshProjects().catch(()=>{ /* In production, project API may be local-only */ });
     
@@ -268,6 +301,48 @@
     function toLuaTable(arr){
       return `{ ${arr.map(it=>toLuaValue(it)).join(', ')} }`;
     }
+
+    // Quick actions wiring (enterprise flow) --------------------------------
+    async function quickRun(prompt){
+      add(prompt, true); pushHistory('user', prompt);
+      const resp = await chatWithAI([
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt }
+      ]);
+      const content = resp?.choices?.[0]?.message?.content || 'No response';
+      add(content.replace(/\n/g, '<br/>'));
+      pushHistory('assistant', content);
+      lastFiles = parseCodeBlocks(content);
+      renderCodeTabs(lastFiles);
+    }
+
+    document.getElementById('act-chapter').addEventListener('click', ()=>{
+      const brief = prompt('Chapter brief (locations, monster vibe, goals):', 'Abandoned hospital, entity stalker, escape via power restoration and keycards');
+      quickRun(`Generate a complete Roblox project (Rojo layout) for a horror chapter. Include: intelligent entity (patrol/stalk/ambush), stealth/hiding (closets/vents, breath), power/fear system (breakers/fuses, darkness fear), event director, loading screen, dialogue scaffolding, and procedural rooms with a few set pieces. Use server-authoritative patterns. Chapter brief: ${brief}. Output full files only in code blocks.`);
+    });
+    document.getElementById('suggest-btn').addEventListener('click', ()=>{
+      const q = prompt('What do you want?');
+      if(q) quickRun(q);
+    });
+    document.getElementById('act-ai').addEventListener('click', ()=>{
+      quickRun('Add an intelligent entity with states (idle/patrol/investigate/stalk/hunt/ambush/retreat), pathfinding, learning tweaks, and perception (sight/hearing). Output full server scripts and necessary modules.');
+    });
+    document.getElementById('act-stealth').addEventListener('click', ()=>{
+      quickRun('Add stealth systems: hiding spots (closet/under-bed/vent) with breath control, detection cones with cover checks, and noise propagation. Output complete server/client scripts.');
+    });
+    document.getElementById('act-map').addEventListener('click', ()=>{
+      quickRun('Build procedural rooms (corridors/chambers), trap placement, and a safe room. Include director hooks and save spawn points. Output scripts that generate the map.');
+    });
+    document.getElementById('act-power').addEventListener('click', ()=>{
+      quickRun('Implement power/fear: breaker panels, fuses, powered lights, darkness fear accrual and recovery, plus SFX flickers. Output complete modules and server scripts.');
+    });
+
+    // Local mode banner when projects API not available
+    (async ()=>{
+      try{ await refreshProjects(); const any = projectSelect.options.length>1; if(!any){ document.getElementById('local-banner').classList.remove('hidden'); document.getElementById('local-banner').textContent = 'Project features are available in local mode (netlify dev + backend).'; } }
+      catch{ document.getElementById('local-banner').classList.remove('hidden'); document.getElementById('local-banner').textContent = 'Project features are available in local mode (netlify dev + backend).'; }
+    })();
   </script>
 </body>
 </html>
+
