@@ -5,3 +5,5 @@ projects/**/exports/*.rbxmx
 projects/**/generated/
 *.log
 
+
+.netlify/
