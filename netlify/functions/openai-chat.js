@@ -10,10 +10,25 @@ exports.handler = async (event) => {
     if (!apiKey) return { statusCode: 500, body: 'OPENAI_API_KEY missing' };
 
     const body = JSON.parse(event.body || '{}');
+
+    // Prefer your fine-tuned model from env unless client overrides
+    const defaultModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    // Build messages; inject a strong system prompt if none provided
+    const systemPrompt = 'You are a senior Roblox/Lua generator. Produce complete, modular files with a Rojo layout. Server-authoritative. Unless asked, reply with only the requested code or data.';
+    let messages = Array.isArray(body.messages) ? body.messages.slice() : [];
+    if (messages.length === 0) {
+      const prompt = typeof body.prompt === 'string' ? body.prompt : 'Generate a minimal Roblox project scaffold with one AI entity.';
+      messages = [{ role: 'user', content: prompt }];
+    }
+    if (!messages.find((m) => m && m.role === 'system')) {
+      messages.unshift({ role: 'system', content: systemPrompt });
+    }
+
     const payload = {
-      model: body.model || 'gpt-4o-mini',
-      messages: body.messages || [{ role: 'user', content: 'ping' }],
-      temperature: body.temperature ?? 0.35
+      model: body.model || defaultModel,
+      messages,
+      temperature: body.temperature ?? 0.5
     };
 
     const r = await fetch('https://api.openai.com/v1/chat/completions', {

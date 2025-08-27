@@ -6,20 +6,30 @@
   <title>RO‑AI | AI Coding Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <script>
+    // Apply saved theme ASAP to avoid flash
+    (function(){
+      const saved = localStorage.getItem('rocode-theme') || 'light';
+      if (saved === 'dark') document.documentElement.classList.add('dark');
+    })();
+  </script>
 </head>
-<body class="bg-gray-50">
-  <nav class="bg-white shadow-sm">
+<body class="bg-gray-50 dark:bg-[#0f0b1a]">
+  <nav class="bg-white dark:bg-[#1a1130] shadow-sm">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-2">
-        <i class="fas fa-robot text-indigo-600 text-2xl"></i>
-        <span class="text-xl font-bold text-gray-900">RO‑AI</span>
+        <i class="fas fa-robot text-indigo-600 dark:text-purple-400 text-2xl"></i>
+        <span class="text-xl font-bold text-gray-900 dark:text-gray-100">RO‑AI</span>
       </div>
+      <button id="theme-toggle" class="px-2 py-1 text-sm border rounded dark:border-purple-500 dark:text-purple-300">
+        <i class="fas fa-moon"></i> Theme
+      </button>
     </div>
   </nav>
 
   <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="bg-white rounded-xl shadow overflow-hidden lg:col-span-2 flex flex-col">
-      <div class="p-4 border-b bg-indigo-600 text-white flex items-center justify-between">
+    <div class="bg-white dark:bg-[#160e27] rounded-xl shadow overflow-hidden lg:col-span-2 flex flex-col">
+      <div class="p-4 border-b bg-indigo-600 dark:bg-purple-700 text-white flex items-center justify-between">
         <div>
           <h3 class="text-lg font-medium">RO‑AI Assistant</h3>
           <p class="text-sm text-indigo-100">Live coding assistant</p>
@@ -32,20 +42,20 @@
         </div>
       </div>
 
-      <div id="chat" class="p-4 space-y-4 grow overflow-auto bg-gray-50"></div>
+      <div id="chat" class="p-4 space-y-4 grow overflow-auto bg-gray-50 dark:bg-[#0f0b1a]"></div>
 
-      <div class="p-4 border-t flex items-center space-x-2 bg-white">
-        <input id="msg" class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500" placeholder="Ask RO‑AI…"/>
-        <button id="send" class="px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+      <div class="p-4 border-t flex items-center space-x-2 bg-white dark:bg-[#160e27]">
+        <input id="msg" class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 dark:bg-[#0f0b1a] dark:text-gray-100" placeholder="Ask RO‑AI…"/>
+        <button id="send" class="px-3 py-2 bg-indigo-600 dark:bg-purple-700 text-white rounded hover:bg-indigo-700">
           <i class="fas fa-paper-plane"></i>
         </button>
         <button id="export-chat" class="px-3 py-2 border rounded">Export Chat → Lua</button>
       </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow overflow-hidden flex flex-col">
+    <div class="bg-white dark:bg-[#160e27] rounded-xl shadow overflow-hidden flex flex-col">
       <div class="p-4 border-b flex items-center justify-between">
-        <div class="font-medium">Live Code</div>
+        <div class="font-medium dark:text-gray-100">Live Code</div>
         <div class="space-x-2">
           <button id="save-files" class="text-sm px-2 py-1 border rounded">Save</button>
           <button id="sync-rojo" class="text-sm px-2 py-1 border rounded">Sync to Studio</button>
@@ -54,13 +64,13 @@
       </div>
       <div id="code-tabs" class="flex border-b overflow-auto"></div>
       <div id="code-panel" class="p-0 grow overflow-auto">
-        <pre id="code-pre" class="p-4 text-sm"></pre>
+        <pre id="code-pre" class="p-4 text-sm dark:text-gray-100"></pre>
       </div>
     </div>
   </div>
 
   <script>
-    const SYSTEM_PROMPT = `You are RO-AI, an enthusiastic game-making AI. Be concise and correct. When asked for code, output complete runnable snippets.`;
+    const SYSTEM_PROMPT = `You are a senior Roblox/Lua generator. Produce complete, modular files with a Rojo folder layout. Be decisive; when asked to \"make a horror game\", output the full scaffold with scripts, not just tips. Only code unless the user asks for explanation.`;
 
     const chat = document.getElementById('chat');
     const msg  = document.getElementById('msg');
@@ -77,8 +87,8 @@
       const wrap = document.createElement('div');
       wrap.className = 'flex ' + (me ? 'justify-end' : 'justify-start');
       wrap.innerHTML = me
-        ? `<div class="bg-indigo-50 text-gray-800 px-4 py-2 rounded-lg max-w-[80%]">${html}</div>`
-        : `<div class="bg-white px-4 py-2 rounded-lg shadow max-w-[80%]">${html}</div>`;
+        ? `<div class="bg-indigo-50 dark:bg-purple-900/30 text-gray-800 dark:text-gray-100 px-4 py-2 rounded-lg max-w-[80%]">${html}</div>`
+        : `<div class="bg-white dark:bg-[#1a1130] dark:text-gray-100 px-4 py-2 rounded-lg shadow max-w-[80%]">${html}</div>`;
       chat.appendChild(wrap); chat.scrollTop = chat.scrollHeight;
     }
     // Chat history persistence
@@ -95,7 +105,7 @@
     }
 
 
-    async function chatWithAI(messages, model='gpt-4o-mini', temperature=0.35){
+    async function chatWithAI(messages, model='gpt-4o-mini', temperature=0.5){
       const r = await fetch('/api/openai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,8 +231,16 @@
       });
     }
 
+    // Theme toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    themeBtn.addEventListener('click', ()=>{
+      const root = document.documentElement;
+      const dark = root.classList.toggle('dark');
+      localStorage.setItem('rocode-theme', dark ? 'dark' : 'light');
+    });
+
     // init
-    refreshProjects().catch(()=>{});
+    refreshProjects().catch(()=>{ /* In production, project API may be local-only */ });
     
     // Export chat → Lua ModuleScript
     document.getElementById('export-chat').addEventListener('click', async ()=>{
